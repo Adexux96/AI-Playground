@@ -1,4 +1,4 @@
-import { ApiService } from './service.ts'
+import { ApiService, ApiServiceInformation, BackendStatus, LocalSettings } from './service.ts' // Added missing type imports
 import { ComfyUiBackendService } from './comfyUIBackendService.ts'
 import { AiBackendService } from './aiBackendService.ts'
 import { BrowserWindow } from 'electron'
@@ -6,21 +6,27 @@ import { appLoggerInstance } from '../logging/logger.ts'
 import getPort, { portNumbers } from 'get-port'
 import { LlamaCppBackendService } from './llamaCppBackendService.ts'
 import { OpenVINOBackendService } from './openVINOBackendService.ts'
+import { IpexLLMBackendService } from './ipexLLMBackendService.ts' // 1. Import IpexLLMBackendService
 
-export type backend = 'ai-backend' | 'comfyui-backend'
+export type backend = 'ai-backend' | 'comfyui-backend' // This type is small, maybe 'ipex-llm-backend' could be added if used elsewhere for strong typing
 
 export interface ApiServiceRegistry {
   register(apiService: ApiService): void
   getRegistered(): ApiService[]
   getRequired(): ApiService[]
+  getService(serviceName: string): ApiService | undefined // Added getService declaration
+  bootUpAllSetUpServices(): Promise<{ serviceName: string; state: BackendStatus }[]>
+  stopAllServices(): Promise<{ serviceName: string; state: BackendStatus }[]>
+  getServiceInformation(): ApiServiceInformation[]
 }
 
 export class ApiServiceRegistryImpl implements ApiServiceRegistry {
   private registeredServices: ApiService[] = []
 
   register(apiService: ApiService): void {
-    if (this.registeredServices.includes(apiService)) {
-      return
+    if (this.registeredServices.find(s => s.name === apiService.name)) { // Prevent duplicate registration by name
+      appLoggerInstance.warn(`Service with name ${apiService.name} already registered. Skipping.`, 'apiServiceRegistry');
+      return;
     }
     this.registeredServices.push(apiService)
   }
@@ -29,9 +35,13 @@ export class ApiServiceRegistryImpl implements ApiServiceRegistry {
     return this.registeredServices
   }
   getRequired(): ApiService[] {
+    // Assuming 'ai-backend' is the primary required service.
+    // If IpexLLMBackendService is also strictly required, this logic might need adjustment
+    // or the isRequired flag on the service itself handles this.
     const requiredServices = this.registeredServices.filter((item) => item.name === 'ai-backend')
-    if (requiredServices.length !== 1) {
-      throw Error("Required Service 'ai-backend' not yet registered")
+    if (requiredServices.length === 0) { // Changed to allow for cases where it might not be registered yet during initial calls
+      appLoggerInstance.warn("Required Service 'ai-backend' not yet registered", 'apiServiceRegistry');
+      return []; // Return empty or handle as appropriate
     }
     return requiredServices
   }
@@ -50,8 +60,9 @@ export class ApiServiceRegistryImpl implements ApiServiceRegistry {
             return { serviceName: service.name, state }
           })
           .catch((e) => {
+            const errorMessage = e instanceof Error ? e.message : String(e);
             appLoggerInstance.error(
-              `Failed to start service ${service.name} due to ${e}`,
+              `Failed to start service ${service.name} due to ${errorMessage}`,
               'apiServiceRegistry',
               true,
             )
@@ -78,8 +89,9 @@ export class ApiServiceRegistryImpl implements ApiServiceRegistry {
             return { serviceName: service.name, state }
           })
           .catch((e) => {
+            const errorMessage = e instanceof Error ? e.message : String(e);
             appLoggerInstance.error(
-              `Failed to stop service ${service.name} due to ${e}`,
+              `Failed to stop service ${service.name} due to ${errorMessage}`,
               'apiServiceRegistry',
               true,
             )
@@ -102,9 +114,11 @@ export async function aiplaygroundApiServiceRegistry(
 ): Promise<ApiServiceRegistryImpl> {
   if (!instance) {
     instance = new ApiServiceRegistryImpl()
+    // Note: The order of registration might matter if there are dependencies for setup.
+    // AiBackendService is likely a foundational one.
     instance.register(
       new AiBackendService(
-        'ai-backend',
+        'ai-backend', // This is the main backend, potentially a prerequisite for others using its env
         await getPort({ port: portNumbers(59000, 59999) }),
         win,
         settings,
@@ -130,6 +144,16 @@ export async function aiplaygroundApiServiceRegistry(
       new LlamaCppBackendService(
         'llamacpp-backend',
         await getPort({ port: portNumbers(39000, 39999) }),
+        win,
+        settings,
+      ),
+    )
+    // 2. Add IpexLLMBackendService instance
+    // Port is hardcoded in IpexLLMBackendService as 59998, so no need for getPort here.
+    instance.register(
+      new IpexLLMBackendService(
+        'ipex-llm-backend', // Name defined in IpexLLMBackendService
+        59998, // Port defined in IpexLLMBackendService, pass it to constructor
         win,
         settings,
       ),
