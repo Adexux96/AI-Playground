@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional
 class LLMParams:
     """
     Unified parameters class for all LLM backends.
-    
+
     This class contains all parameters needed for LLM inference across different backends:
     - Default (IPEX)
     - LlamaCPP
@@ -15,17 +15,18 @@ class LLMParams:
     max_tokens: int
     external_rag_context: Optional[str]
     print_metrics: bool
+    quantization_method: Optional[str] = "sym_int4" # Added line
     generation_parameters: Dict[str, Any]
 
     def __init__(
-        self, prompt: list, device: int, model_repo_id: str, 
-        max_tokens: int, external_rag_context: Optional[str] = None, 
-        print_metrics: bool = True, 
+        self, prompt: list, device: int, model_repo_id: str,
+        max_tokens: int, external_rag_context: Optional[str] = None,
+        print_metrics: bool = True, quantization_method: Optional[str] = "sym_int4", # Added parameter
         **kwargs
     ) -> None:
         """
         Initialize LLM parameters.
-        
+
         Args:
             prompt: List of prompt dictionaries with "question" and optionally "answer" keys
             device: Device ID to run inference on
@@ -33,6 +34,7 @@ class LLMParams:
             max_tokens: Maximum number of tokens to generate
             external_rag_context: Optional context from external RAG system
             print_metrics: Whether to print performance metrics
+            quantization_method: Method for quantization (e.g., "sym_int4") # Added docstring
             **kwargs: Additional generation parameters passed to the model
         """
         self.prompt = prompt
@@ -41,4 +43,5 @@ class LLMParams:
         self.max_tokens = max_tokens
         self.external_rag_context = external_rag_context
         self.print_metrics = print_metrics
+        self.quantization_method = quantization_method # Added assignment
         self.generation_parameters = kwargs

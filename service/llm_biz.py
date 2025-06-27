@@ -131,22 +131,22 @@ def process_rag(
 ):
     """
     Process RAG using only external documents.
-    
+
     Args:
         prompt: The user's query
         external_context: Context from external RAG system (langchain.js)
         text_out_callback: Callback function for text output (not used for source anymore)
         external_source: Source information from external RAG system (not used)
-        
+
     Returns:
         Formatted prompt with context
     """
     print("Using external RAG context\r\n{}".format(external_context))
-    
+
     # No longer sending source via callback
     # if text_out_callback is not None and external_source is not None:
     #     text_out_callback(external_source, 2)
-            
+
     # Format the prompt with the external context
     return RAG_PROMPT_FORMAT.format(prompt=prompt, context=external_context)
 
@@ -190,13 +190,18 @@ def chat(
                 load_model_callback("start")
             start = time.time()
 
-            load_in_low_bit = "sym_int4"
+            # Determine quantization method
+            quantization_method_to_use = params.quantization_method
+            if not quantization_method_to_use:  # Handles None or empty string
+                load_in_low_bit = "sym_int4"
+            else:
+                load_in_low_bit = quantization_method_to_use
 
             _model = AutoModelForCausalLM.from_pretrained(
                 model_path,
                 torch_dtype=torch.float16,
                 trust_remote_code=True,
-                load_in_low_bit=load_in_low_bit,
+                load_in_low_bit=load_in_low_bit, # Use the determined value
                 # load_in_4bit=True,
             )
 
@@ -218,9 +223,9 @@ def chat(
         if params.external_rag_context:
             last_prompt = prompt[prompt.__len__() - 1]
             last_prompt.__setitem__(
-                "question", 
+                "question",
                 process_rag(
-                    last_prompt.get("question"), 
+                    last_prompt.get("question"),
                     params.external_rag_context,
                 )
             )

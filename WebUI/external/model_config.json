@@ -6,5 +6,12 @@
   "stableDiffusion": "./resources/service/models/stable_diffusion/checkpoints",
   "inpaint": "./resources/service/models/stable_diffusion/inpaint",
   "lora": "./resources/service/models/stable_diffusion/lora",
-  "vae": "./resources/service/models/stable_diffusion/vae"
+  "vae": "./resources/service/models/stable_diffusion/vae",
+  "ipex_llm_models": [
+    {
+      "name": "Placeholder-IPEX-LLM-Model",
+      "path": "./resources/service/models/llm/checkpoints/placeholder_model",
+      "quantization_method": "sym_int4"
+    }
+  ]
 }
